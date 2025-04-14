@@ -1,0 +1,181 @@
+{% extends "shop/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{{ title }}</h1>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    {% csrf_token %}
+    {% if cart and cart.items.all %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                        <th>Remove</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in cart.items.all %}
+                        <tr>
+                            <td>
+                                <a href="{{ item.product.get_absolute_url }}">
+                                    {{ item.product.name }}
+                                </a>
+                            </td>
+                            <td>
+                                <div class="input-group" style="max-width: 150px;">
+                                    <button class="btn btn-outline-secondary update-quantity" 
+                                            data-product-id="{{ item.product.id }}"
+                                            data-action="decrease">-</button>
+                                    <input type="number" class="form-control text-center quantity-input"
+                                           value="{{ item.quantity }}" min="1"
+                                           data-product-id="{{ item.product.id }}">
+                                    <button class="btn btn-outline-secondary update-quantity"
+                                            data-product-id="{{ item.product.id }}"
+                                            data-action="increase">+</button>
+                                </div>
+                            </td>
+                            <td>${{ item.product.price }}</td>
+                            <td>${{ item.get_total_price }}</td>
+                            <td>
+                                <button class="btn btn-danger remove-item"
+                                        data-product-id="{{ item.product.id }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3"><strong>Total</strong></td>
+                        <td colspan="2"><strong>${{ cart.get_total_price }}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="text-end">
+            <a href="{% url 'shop:product_list' %}" class="btn btn-secondary">Continue Shopping</a>
+            <a href="#" class="btn btn-primary">Checkout</a>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            Your cart is empty. <a href="{% url 'shop:product_list' %}">Continue shopping</a>.
+        </div>
+    {% endif %}
+</div>
+
+<!-- Toast Notification -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="cartToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Cart Update</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toast = new bootstrap.Toast(document.getElementById('cartToast'));
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    function showToast(message) {
+        document.querySelector('.toast-body').textContent = message;
+        toast.show();
+    }
+
+    function updateCartItem(productId, quantity) {
+        fetch(`/cart/update/${productId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ quantity: quantity })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message);
+                location.reload();
+            } else {
+                showToast(data.message);
+            }
+        })
+        .catch(error => {
+            showToast('Error updating cart');
+        });
+    }
+
+    document.querySelectorAll('.update-quantity').forEach(button => {
+        button.addEventListener('click', function() {
+            const productId = this.dataset.productId;
+            const input = this.parentElement.querySelector('.quantity-input');
+            let quantity = parseInt(input.value);
+            
+            if (this.dataset.action === 'increase') {
+                quantity++;
+            } else if (this.dataset.action === 'decrease' && quantity > 1) {
+                quantity--;
+            }
+            
+            input.value = quantity;
+            updateCartItem(productId, quantity);
+        });
+    });
+
+    document.querySelectorAll('.quantity-input').forEach(input => {
+        input.addEventListener('change', function() {
+            const productId = this.dataset.productId;
+            const quantity = parseInt(this.value);
+            if (quantity > 0) {
+                updateCartItem(productId, quantity);
+            }
+        });
+    });
+
+    document.querySelectorAll('.remove-item').forEach(button => {
+        button.addEventListener('click', function() {
+            const productId = this.dataset.productId;
+            fetch(`/cart/remove/${productId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    location.reload();
+                } else {
+                    showToast(data.message);
+                }
+            })
+            .catch(error => {
+                showToast('Error removing item from cart');
+            });
+        });
+    });
+});
+</script>
+{% endblock %} 

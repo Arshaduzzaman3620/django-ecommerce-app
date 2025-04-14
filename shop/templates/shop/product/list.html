@@ -1,0 +1,141 @@
+{% extends "shop/base.html" %}
+
+{% block title %}
+    {% if category %}{{ category.name }}{% else %}Products{% endif %}
+{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-grid"></i> Categories</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        <li class="list-group-item {% if not category %}active{% endif %}">
+                            <a href="{% url 'shop:product_list' %}" class="category-link">
+                                <i class="bi bi-grid-3x3"></i> All Products
+                            </a>
+                        </li>
+                        {% for c in categories %}
+                        <li class="list-group-item {% if category.slug == c.slug %}active{% endif %}">
+                            <a href="{{ c.get_absolute_url }}" class="category-link">
+                                <i class="bi bi-tag"></i> {{ c.name }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">
+                    {% if category %}
+                        <i class="bi bi-tag"></i> {{ category.name }}
+                    {% else %}
+                        <i class="bi bi-grid-3x3"></i> All Products
+                    {% endif %}
+                </h2>
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown">
+                        <i class="bi bi-sort-down"></i> Sort By
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#">Price: Low to High</a></li>
+                        <li><a class="dropdown-item" href="#">Price: High to Low</a></li>
+                        <li><a class="dropdown-item" href="#">Newest First</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="row">
+                {% for product in products %}
+                <div class="col-md-4 mb-4">
+                    <div class="card product-card h-100">
+                        <a href="{{ product.get_absolute_url }}">
+                            {% if product.image %}
+                                <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                            {% else %}
+                                <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 250px;">
+                                    <i class="bi bi-image text-secondary" style="font-size: 3rem;"></i>
+                                </div>
+                            {% endif %}
+                        </a>
+                        <div class="card-body">
+                            <h5 class="card-title">{{ product.name }}</h5>
+                            <p class="card-text">${{ product.price }}</p>
+                            <div class="d-flex justify-content-between">
+                                <a href="{{ product.get_absolute_url }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View Details
+                                </a>
+                                <form action="{% url 'cart:cart_add' product.id %}" method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-primary add-to-cart">
+                                        <i class="bi bi-cart-plus"></i> Add to Cart
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> No products found in this category.
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="cart-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">Cart Update</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addToCartButtons = document.querySelectorAll('.add-to-cart');
+        const toast = new bootstrap.Toast(document.getElementById('cart-toast'));
+        const toastBody = document.querySelector('.toast-body');
+
+        addToCartButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const productId = this.dataset.productId;
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', `/cart/add/${productId}/`, true);
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        toastBody.textContent = response.message;
+                        toast.show();
+                        
+                        // Update cart total if needed
+                        if (response.cart_total) {
+                            // You can update a cart total element if you have one
+                            const cartTotal = document.querySelector('.cart-total');
+                            if (cartTotal) {
+                                cartTotal.textContent = `$${response.cart_total}`;
+                            }
+                        }
+                    }
+                };
+                
+                xhr.send();
+            });
+        });
+    });
+</script>
+{% endblock %} 
